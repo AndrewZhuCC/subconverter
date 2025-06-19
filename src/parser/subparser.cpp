@@ -11,6 +11,7 @@
 #include "utils/urlencode.h"
 #include "utils/yamlcpp_extra.h"
 #include "config/proxy.h"
+#include "handler/webget.h"
 #include "subparser.h"
 
 using namespace rapidjson;
@@ -1535,6 +1536,26 @@ void explodeClash(Node yamlnode, std::vector<Proxy> &nodes)
     }
 }
 
+void explodeProxyProviders(Node yamlnode, std::vector<Proxy> &nodes) {
+    if (!yamlnode["proxy-providers"].IsDefined()) return;
+    const auto &providers = yamlnode["proxy-providers"];
+    for (auto it = providers.begin(); it != providers.end(); ++it) {
+        const YAML::Node &provider = it->second;
+        if (!provider["url"].IsDefined()) continue;
+        std::string url = provider["url"].as<std::string>();
+        std::string content = webGet(url, "", 0, nullptr, nullptr);
+        if (content.empty()) continue;
+        try {
+            YAML::Node providerYaml = YAML::Load(content);
+            if (providerYaml["proxies"].IsDefined() || providerYaml["Proxy"].IsDefined()) {
+                explodeClash(providerYaml, nodes);
+            }
+        } catch (...) {
+            // 忽略解析异常
+        }
+    }
+}
+
 void explodeStdVMess(std::string vmess, Proxy &node)
 {
     std::string add, port, type, id, aid, net, path, host, tls, remarks;
@@ -2856,6 +2877,23 @@ void explodeSub(std::string sub, std::vector<Proxy> &nodes)
     {
         explodeSSD(sub, nodes);
         processed = true;
+    }
+
+    //try to parse as clash configuration with proxy-providers
+    try
+    {
+        if (!processed && regFind(sub, "\"?(proxy-providers)\"?:"))
+        {
+            regGetMatch(sub, R"(^(?:proxy-providers):$\s(?:(?:^ +?.*$| ?-.$|^#.*$|)\s?)+)", 1, &sub);
+            Node yamlnode = Load(sub);
+            explodeProxyProviders(yamlnode, nodes);
+        }
+    }
+    catch (std::exception &e)
+    {
+        //writeLog(0, e.what(), LOG_LEVEL_DEBUG);
+        //ignore
+        throw;
     }
 
     //try to parse as clash configuration
