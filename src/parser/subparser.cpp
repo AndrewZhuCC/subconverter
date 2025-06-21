@@ -1546,12 +1546,11 @@ void explodeProxyProviders(Node yamlnode, std::vector<Proxy> &nodes) {
         std::string content = webGet(url, "", 0, nullptr, nullptr);
         if (content.empty()) continue;
         try {
-            YAML::Node providerYaml = YAML::Load(content);
-            if (providerYaml["proxies"].IsDefined() || providerYaml["Proxy"].IsDefined()) {
-                explodeClash(providerYaml, nodes);
-            }
-        } catch (...) {
+            explodeConfContent(content, nodes);
             // 忽略解析异常
+        } catch (...) {
+            // 解析异常，可能是格式不正确或内容不符合预期
+            continue;
         }
     }
 }
@@ -1997,7 +1996,7 @@ void parsePeers(Proxy &node, const std::string &data)
 bool explodeSurge(std::string surge, std::vector<Proxy> &nodes)
 {
     std::multimap<std::string, std::string> proxies;
-    uint32_t i, index = nodes.size();
+    uint32_t i, index, oriIndex = nodes.size();
     INIReader ini;
 
     /*
@@ -2707,7 +2706,7 @@ bool explodeSurge(std::string surge, std::vector<Proxy> &nodes)
         nodes.emplace_back(std::move(node));
         index++;
     }
-    return index;
+    return index > oriIndex;
 }
 
 void explodeSSTap(std::string sstap, std::vector<Proxy> &nodes)
@@ -2884,7 +2883,6 @@ void explodeSub(std::string sub, std::vector<Proxy> &nodes)
     {
         if (!processed && regFind(sub, "\"?(proxy-providers)\"?:"))
         {
-            regGetMatch(sub, R"(^(?:proxy-providers):$\s(?:(?:^ +?.*$| ?-.$|^#.*$|)\s?)+)", 1, &sub);
             Node yamlnode = Load(sub);
             explodeProxyProviders(yamlnode, nodes);
         }

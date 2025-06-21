@@ -3,8 +3,6 @@ LABEL maintainer="metacubex.official@gmail.com"
 ARG THREADS="4"
 ARG SHA=""
 
-COPY . subconverter
-
 # build minimized
 WORKDIR /
 RUN set -xe && \
@@ -35,7 +33,11 @@ RUN set -xe && \
     git clone https://github.com/ToruNiina/toml11 --branch="v4.3.0" --depth=1 && \
     cd toml11 && \
     cmake -DCMAKE_CXX_STANDARD=11 . && \
-    make install -j $THREADS && \
+    make install -j $THREADS
+
+COPY . subconverter
+
+RUN set -xe && \
     cd /subconverter && \
     [ -n "$SHA" ] && sed -i 's/\(v[0-9]\.[0-9]\.[0-9]\)/\1-'"$SHA"'/' src/version.h;\
     python3 -m ensurepip && \
